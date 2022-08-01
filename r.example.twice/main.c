@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <grass/gis.h>
+#include <grass/glocale.h>
 #include <grass/raster.h>
 
 static double times_two(double a)
@@ -12,8 +13,8 @@ static double times_two(double a)
 
 int main(int argc, char *argv[])
 {
-    struct Cell_head cell_head;    /* it stores region information,
-                                   and header information of rasters */
+    struct Cell_head cell_head;
+    struct History history;
     char *name;                 /* input raster name */
     char *result;               /* output raster name */
     char *mapset;               /* mapset name */
@@ -23,28 +24,20 @@ int main(int argc, char *argv[])
     int row, col;
     int input_fd, output_fd;            /* file descriptor */
     RASTER_MAP_TYPE data_type;  /* type of the map (CELL/DCELL/...) */
-    struct History history;     /* holds meta-data (title, comments,..) */
 
-    struct GModule *module;     /* GRASS module for parsing arguments */
+    // Initilizes the GRASS library based on the current GRASS session
+    G_gisinit(argv[0]);
 
-    struct Option *input, *output;      /* options */
-
-    /* initialize GIS environment */
-    G_gisinit(argv[0]);         /* reads grass env, stores program name to G_program_name() */
-
-    /* initialize module */
-    module = G_define_module();
+    // Interface
+    struct GModule *module = G_define_module();
     G_add_keyword(_("raster"));
-    G_add_keyword(_("keyword2"));
-    G_add_keyword(_("keyword3"));
-    module->description = _("My first raster module");
+    G_add_keyword(_("algebra"));
+    G_add_keyword(_("multiplication"));
+    module->description = _("Multiply values in a raster map by two");
 
-    /* Define the different options as defined in gis.h */
-    input = G_define_standard_option(G_OPT_R_INPUT);
+    struct Option *input = G_define_standard_option(G_OPT_R_INPUT);
+    struct Option *output = G_define_standard_option(G_OPT_R_OUTPUT);
 
-    output = G_define_standard_option(G_OPT_R_OUTPUT);
-
-    /* options and flags parser */
     if (G_parser(argc, argv))
         exit(EXIT_FAILURE);
 

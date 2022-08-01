@@ -2,7 +2,7 @@
 # or use absolute path to the GRASS source code
 MODULE_TOPDIR = ../../..
 
-PGM = r.example
+PGM = r.example.twice
 
 LIBES = $(GISLIB) $(RASTERLIB)
 DEPENDENCIES = $(GISDEP) $(RASTERDEP)
