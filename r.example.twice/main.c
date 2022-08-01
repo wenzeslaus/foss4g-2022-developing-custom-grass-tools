@@ -1,3 +1,18 @@
+
+/****************************************************************************
+ *
+ * MODULE:       r.example.twice
+ * AUTHORS:      Alice Doe <alice_doe at somewhere org>
+ *               Bob Doe <bob_doe at somewhere org>
+ * PURPOSE:      Provide short description of module here...
+ * COPYRIGHT:    (C) 2022 by Alice Doe and the GRASS Development Team
+ *
+ *               This program is free software under the GNU General Public
+ *               License (>=v2). Read the COPYING file that comes with GRASS
+ *               for details.
+ *
+ *****************************************************************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,23 +28,12 @@ static double times_two(double a)
 
 int main(int argc, char *argv[])
 {
-    struct Cell_head cell_head;
-    struct History history;
-    char *name;                 /* input raster name */
-    char *result;               /* output raster name */
-    char *mapset;               /* mapset name */
-    void *input_raster;               /* input buffer */
-    unsigned char *output_raster;     /* output buffer */
-    int nrows, ncols;
-    int row, col;
-    int input_fd, output_fd;            /* file descriptor */
-    RASTER_MAP_TYPE data_type;  /* type of the map (CELL/DCELL/...) */
-
-    // Initilizes the GRASS library based on the current GRASS session
+    // Initializes the GRASS library based on the current GRASS session.
     G_gisinit(argv[0]);
 
     // Interface
     struct GModule *module = G_define_module();
+
     G_add_keyword(_("raster"));
     G_add_keyword(_("algebra"));
     G_add_keyword(_("multiplication"));
@@ -41,88 +45,72 @@ int main(int argc, char *argv[])
     if (G_parser(argc, argv))
         exit(EXIT_FAILURE);
 
-    /* stores options and flags to variables */
-    name = input->answer;
-    result = output->answer;
+    // Returns a file descriptior for reading a raster or fails.
+    int input_fd = Rast_open_old(input->answer, "");
 
-    /* returns NULL if the map was not found in any mapset, 
-     * mapset name otherwise */
-    mapset = (char *)G_find_raster2(name, "");
-    if (mapset == NULL)
-        G_fatal_error(_("Raster map <%s> not found"), name);
+    // Determine data type of the input, we will use it for the output, too.
+    // This means we will preserve the input data type on output.
+    RASTER_MAP_TYPE data_type = Rast_map_type(input->answer, "");
 
-    /* determine the input map type (CELL/FCELL/DCELL) */
-    data_type = Rast_map_type(name, mapset);
+    // Returns a file descriptior for writing a raster or fails.
+    int output_fd = Rast_open_new(output->answer, data_type);
 
-    /* Rast_open_old - returns file descriptor (>0) */
-    input_fd = Rast_open_old(name, mapset);
+    // Allocate buffer for a row of input and output data.
+    // Our computation always happens for doubles, so we will use data
+    // converted to doubles. Number of elements is automatically determined
+    // from the current computational region.
+    DCELL *input_buffer = Rast_allocate_d_buf();
+    DCELL *output_buffer = Rast_allocate_d_buf();
 
-    /* controlling, if we can open input raster */
-    Rast_get_cellhd(name, mapset, &cell_head);
+    // Get number of rows and columns determined by the current
+    // computational region.
+    int nrows = Rast_window_rows();
+    int ncols = Rast_window_cols();
 
-    G_debug(3, "number of rows %d", cell_head.rows);
+    // Process each row.
+    // Our computation is using only one individual value at a time,
+    // so we just iterate over all rows and columns.
+    for (int row = 0; row < nrows; row++) {
+        G_percent(row, nrows, 10);      // Show only 10% increments.
 
-    /* Allocate input buffer */
-    input_raster = Rast_allocate_buf(data_type);
+        // Read a row of input data.
+        // This uses computational region, takes into account global mask,
+        // and the type of underlying data.
+        Rast_get_d_row(input_fd, input_buffer, row);
 
-    /* Allocate output buffer, use input map data_type */
-    nrows = Rast_window_rows();
-    ncols = Rast_window_cols();
-    output_raster = Rast_allocate_buf(data_type);
-
-    /* controlling, if we can write the raster */
-    output_fd = Rast_open_new(result, data_type);
-
-    /* for each row */
-    for (row = 0; row < nrows; row++) {
-        CELL c;
-        FCELL f;
-        DCELL d;
-
-        G_percent(row, nrows, 2);
-
-        /* read input map */
-        Rast_get_row(input_fd, input_raster, row, data_type);
-
-        /* process the data */
-        for (col = 0; col < ncols; col++) {
-            /* use different function for each data type */
-            switch (data_type) {
-            case CELL_TYPE:
-                c = ((CELL *) input_raster)[col];
-                c = times_two(c);  /* calculate */
-                ((CELL *) output_raster)[col] = c;
-                break;
-            case FCELL_TYPE:
-                f = ((FCELL *) input_raster)[col];
-                f = times_two(f);  /* calculate */
-                ((FCELL *) output_raster)[col] = f;
-                break;
-            case DCELL_TYPE:
-                d = ((DCELL *) input_raster)[col];
-                d = times_two(d);  /* calculate */
-                ((DCELL *) output_raster)[col] = d;
-                break;
-            }
+        // Process each cell in a row.
+        for (int col = 0; col < ncols; col++) {
+            // The actual computation is called here.
+            // This is also the place to deal with null values.
+            // For floats and doubles, the code may work even without explicit
+            // handling of null values, but the behavior is platfrom-dependent,
+            // so explicit null handling is recommend.
+            if (Rast_is_d_null_value(&input_buffer[col]))
+                Rast_set_d_null_value(&output_buffer[col]);
+            else
+                output_buffer[col] = times_two(input_buffer[col]);
         }
 
-        /* write raster row to output raster map */
-        Rast_put_row(output_fd, output_raster, data_type);
+        // Write a row of output data.
+        // Conversion to the output data type is done in the background.
+        Rast_put_d_row(output_fd, output_buffer);
     }
+    G_percent(1, 1, 1);         // Report 100%.
 
-    /* memory cleanup */
-    G_free(input_raster);
-    G_free(output_raster);
-
-    /* closing raster maps */
+    // Free buffers and close rasters.
+    G_free(input_buffer);
+    G_free(output_buffer);
     Rast_close(input_fd);
     Rast_close(output_fd);
 
-    /* add command line incantation to history file */
-    Rast_short_history(result, "raster", &history);
-    Rast_command_history(&history);
-    Rast_write_history(result, &history);
+    // Add command line parameters to metadata (history).
+    // In the background, it uses the parsed command line including
+    // default values to construct the history record.
+    struct History history;
 
+    Rast_short_history(output->answer, "raster", &history);
+    Rast_command_history(&history);
+    Rast_write_history(output->answer, &history);
 
     exit(EXIT_SUCCESS);
 }
