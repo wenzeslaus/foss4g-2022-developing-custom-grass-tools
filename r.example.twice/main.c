@@ -45,14 +45,14 @@ int main(int argc, char *argv[])
     if (G_parser(argc, argv))
         exit(EXIT_FAILURE);
 
-    // Returns a file descriptior for reading a raster or fails.
+    // Returns a file descriptor for reading a raster or fails.
     int input_fd = Rast_open_old(input->answer, "");
 
     // Determine data type of the input, we will use it for the output, too.
     // This means we will preserve the input data type on output.
     RASTER_MAP_TYPE data_type = Rast_map_type(input->answer, "");
 
-    // Returns a file descriptior for writing a raster or fails.
+    // Returns a file descriptor for writing a raster or fails.
     int output_fd = Rast_open_new(output->answer, data_type);
 
     // Allocate buffer for a row of input and output data.
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
             // The actual computation is called here.
             // This is also the place to deal with null values.
             // For floats and doubles, the code may work even without explicit
-            // handling of null values, but the behavior is platfrom-dependent,
+            // handling of null values, but the behavior is platform-dependent,
             // so explicit null handling is recommend.
             if (Rast_is_d_null_value(&input_buffer[col]))
                 Rast_set_d_null_value(&output_buffer[col]);
