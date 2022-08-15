@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
             // handling of null values, but the behavior is platform-dependent,
             // so explicit null handling is recommend.
             if (Rast_is_d_null_value(&input_buffer[col]))
-                Rast_set_d_null_value(&output_buffer[col]);
+                Rast_set_d_null_value(&output_buffer[col], 1);
             else
                 output_buffer[col] = times_two(input_buffer[col]);
         }
